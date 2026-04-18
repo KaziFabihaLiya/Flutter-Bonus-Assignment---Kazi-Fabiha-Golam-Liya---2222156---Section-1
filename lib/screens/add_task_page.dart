@@ -6,6 +6,8 @@ import 'package:flutter_ui_class/utils/validators.dart';
 import 'package:flutter_ui_class/widgets/core_input_field.dart';
 import 'package:flutter_ui_class/widgets/password_input_filed.dart';
 import 'package:provider/provider.dart';
+import '../models/task_model.dart';
+import '../repositories/task_repository.dart';
 
 class AddTaskPage extends StatefulWidget {
   const AddTaskPage({super.key});
@@ -22,6 +24,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final _descriptionController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
+  final TaskRepository _taskRepository = TaskRepository(); // 🔥 ADDED
+  bool _isLoading = false;                                 // 🔥 ADDED
 
   late TaskManagementProvider taskProvider;
 
@@ -98,17 +102,33 @@ class _AddTaskPageState extends State<AddTaskPage> {
       bottomNavigationBar: Container(
         padding: EdgeInsets.symmetric(horizontal: 30, vertical: 30),
         child: ElevatedButton(
-          onPressed: () {
+          // 🔥 MODIFIED: made async, added loading guard, added Firebase save
+          onPressed: _isLoading ? null : () async {
             if (_formKey.currentState!.validate()) {
+              setState(() => _isLoading = true); // 🔥 ADDED
+
               final String taskDetails =
                   "Assigned to: ${_assignedToController.text} \nPhone: ${_phoneNumberController.text} \nDescription: ${_descriptionController.text} \n \n The task Password is ${_passwordController.text}";
 
+              // ✅ Existing local provider save — kept as is
               taskProvider.addTaskExternal(
                 CardDataModel(
                   title: _titleController.text,
                   subtitle: taskDetails,
                 ),
               );
+
+              // 🔥 ADDED: also save to Firestore
+              await _taskRepository.addTask(
+                Task(
+                  id: '',
+                  title: _titleController.text.trim(),
+                  description: taskDetails,
+                  createdAt: DateTime.now(),
+                ),
+              );
+
+              setState(() => _isLoading = false); // 🔥 ADDED
 
               Navigator.of(context).pop();
 
@@ -129,7 +149,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
             padding: EdgeInsets.symmetric(vertical: 16),
             textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          child: Text("Add Task"),
+          // 🔥 MODIFIED: show spinner when loading
+          child: _isLoading
+              ? CircularProgressIndicator(color: Colors.white)
+              : Text("Add Task"),
         ),
       ),
     );
